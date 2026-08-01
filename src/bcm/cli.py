@@ -8,22 +8,23 @@ import sys
 from pathlib import Path
 from typing import Sequence
 
-from .errors import BCMError, DecodeError, ExecutionError
+from .codec import load_json_file, write_canonical_json_file
+from .errors import BCMError, ExecutionError
 from .model import BCMBlock
+from .snapshot import BlockSnapshot, create_snapshot, verify_parent
 from .validator import validate_block
 from .vm import RunEvent, VirtualMachine
 
 
 def load_block(path: Path) -> BCMBlock:
-    try:
-        with path.open("r", encoding="utf-8") as stream:
-            document = json.load(stream)
-    except json.JSONDecodeError as exc:
-        raise DecodeError(f"JSON inválido en {path}: {exc.msg}") from exc
-
+    document = load_json_file(path)
     block = BCMBlock.from_document(document)
     validate_block(block)
     return block
+
+
+def load_snapshot(path: Path) -> BlockSnapshot:
+    return BlockSnapshot.from_document(load_json_file(path))
 
 
 def _run_command(args: argparse.Namespace) -> int:
@@ -53,6 +54,12 @@ def _run_command(args: argparse.Namespace) -> int:
         "events": events,
         "document": block.to_document(),
     }
+    if args.output_block is not None:
+        write_canonical_json_file(
+            args.output_block,
+            block.to_document(),
+            overwrite=args.force,
+        )
     print(json.dumps(output, ensure_ascii=False, indent=2, sort_keys=True))
     return 0
 
@@ -75,6 +82,73 @@ def _inspect_command(args: argparse.Namespace) -> int:
     }
     print(json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True))
     return 0
+
+
+def _checkpoint_command(args: argparse.Namespace) -> int:
+    block = load_block(args.path)
+    parent = load_snapshot(args.parent) if args.parent is not None else None
+    snapshot = create_snapshot(block, parent=parent)
+    write_canonical_json_file(
+        args.output,
+        snapshot.to_document(),
+        overwrite=args.force,
+    )
+    summary = {
+        "snapshot_format": snapshot.SNAPSHOT_FORMAT,
+        "id": snapshot.block_id,
+        "generation": snapshot.generation,
+        "parent_hash": snapshot.parent_hash,
+        "content_hash": snapshot.content_hash,
+        "output": str(args.output),
+        "valid": True,
+    }
+    print(json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True))
+    return 0
+
+
+def _verify_command(args: argparse.Namespace) -> int:
+    snapshot = load_snapshot(args.path)
+    if args.parent is not None:
+        verify_parent(snapshot, load_snapshot(args.parent))
+    summary = {
+        "snapshot_format": snapshot.SNAPSHOT_FORMAT,
+        "id": snapshot.block_id,
+        "generation": snapshot.generation,
+        "parent_hash": snapshot.parent_hash,
+        "content_hash": snapshot.content_hash,
+        "parent_verified": args.parent is not None,
+        "valid": True,
+    }
+    print(json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True))
+    return 0
+
+
+def _restore_command(args: argparse.Namespace) -> int:
+    snapshot = load_snapshot(args.path)
+    block = snapshot.thaw()
+    write_canonical_json_file(
+        args.output,
+        block.to_document(),
+        overwrite=args.force,
+    )
+    summary = {
+        "id": block.block_id,
+        "generation": block.generation,
+        "content_hash": snapshot.content_hash,
+        "output": str(args.output),
+        "restored": True,
+    }
+    print(json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True))
+    return 0
+
+
+def _add_output_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--output", "-o", type=Path, required=True)
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="permite sustituir el archivo de salida",
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -109,7 +183,45 @@ def build_parser() -> argparse.ArgumentParser:
         default=1_000,
         help="protección frente a programas que no terminan",
     )
+    run_parser.add_argument(
+        "--output-block",
+        type=Path,
+        default=None,
+        help="guarda el estado resultante como documento BCM canónico",
+    )
+    run_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="permite sustituir --output-block",
+    )
     run_parser.set_defaults(handler=_run_command)
+
+    checkpoint_parser = subparsers.add_parser(
+        "checkpoint", help="congela un bloque como snapshot verificable"
+    )
+    checkpoint_parser.add_argument("path", type=Path)
+    checkpoint_parser.add_argument(
+        "--parent",
+        type=Path,
+        default=None,
+        help="snapshot progenitor de la nueva generación",
+    )
+    _add_output_arguments(checkpoint_parser)
+    checkpoint_parser.set_defaults(handler=_checkpoint_command)
+
+    verify_parser = subparsers.add_parser(
+        "verify", help="verifica la integridad y, opcionalmente, la filiación"
+    )
+    verify_parser.add_argument("path", type=Path)
+    verify_parser.add_argument("--parent", type=Path, default=None)
+    verify_parser.set_defaults(handler=_verify_command)
+
+    restore_parser = subparsers.add_parser(
+        "restore", help="reconstruye un bloque mutable desde un snapshot"
+    )
+    restore_parser.add_argument("path", type=Path)
+    _add_output_arguments(restore_parser)
+    restore_parser.set_defaults(handler=_restore_command)
     return parser
 
 
@@ -121,4 +233,3 @@ def main(argv: Sequence[str] | None = None) -> int:
     except (BCMError, OSError) as exc:
         print(f"BCM error: {exc}", file=sys.stderr)
         return 2
-

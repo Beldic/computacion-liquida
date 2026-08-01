@@ -1,4 +1,4 @@
-"""Máquina virtual determinista de BCM/0.1-A."""
+"""Máquina virtual determinista del protocolo BCM/0.1."""
 
 from __future__ import annotations
 
@@ -175,4 +175,3 @@ class VirtualMachine:
         if type(value) is not int or value < 0:
             raise ExecutionError("la dirección debe ser un entero no negativo")
         return value
-

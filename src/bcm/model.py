@@ -1,4 +1,4 @@
-"""Modelos transportables de BCM/0.1-A."""
+"""Modelos transportables del protocolo BCM/0.1."""
 
 from __future__ import annotations
 
@@ -231,4 +231,3 @@ class BCMBlock:
                 "limits": self.limits.to_dict(),
             },
         }
-

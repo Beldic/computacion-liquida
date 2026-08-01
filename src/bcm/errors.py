@@ -24,3 +24,14 @@ class StackUnderflowError(ExecutionError):
 class ResourceLimitError(ExecutionError):
     """La operación excedería un límite declarado por el bloque."""
 
+
+class CanonicalizationError(BCMError):
+    """Un valor no pertenece al subconjunto JSON canónico de BCM."""
+
+
+class IntegrityError(BCMError):
+    """El contenido no coincide con la identidad criptográfica declarada."""
+
+
+class GenealogyError(BCMError):
+    """Dos generaciones no forman una relación genealógica válida."""

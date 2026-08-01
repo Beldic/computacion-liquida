@@ -6,9 +6,9 @@ Computación Líquida investiga un modelo en el que código, memoria y continuac
 
 > Concepto original y autoría: **Jordi Casado Sobrepere | Filosofía Sobreperiana**
 
-Este repositorio contiene el primer hito técnico, **BCM/0.1-A**: una máquina virtual local, determinista y sin dependencias externas de ejecución. Todavía no transmite bloques entre procesos ni equipos; establece la semántica mínima que hará posible esa migración.
+Este repositorio contiene el segundo hito técnico, **BCM/0.1-B**: una máquina virtual local y determinista cuyos estados pueden congelarse como snapshots inmutables, canónicos y enlazados mediante SHA-256. Todavía no transmite bloques entre procesos ni equipos; establece la identidad histórica que hará verificable esa migración.
 
-La fundamentación completa se encuentra en [docs/computacion-liquida.md](docs/computacion-liquida.md) y la semántica ejecutable del primer conjunto de instrucciones, en [docs/isa-0.1.md](docs/isa-0.1.md).
+La fundamentación completa se encuentra en [docs/computacion-liquida.md](docs/computacion-liquida.md), la semántica ejecutable del conjunto de instrucciones en [docs/isa-0.1.md](docs/isa-0.1.md) y el formato genealógico en [docs/snapshots-0.1.md](docs/snapshots-0.1.md).
 
 ## Estado actual
 
@@ -21,7 +21,11 @@ El núcleo implementa:
 - quantum configurable;
 - suspensión mediante `YIELD` y reanudación local;
 - validación de instrucciones, saltos, memoria y recursos;
-- carga y salida documental en JSON;
+- JSON canónico BCM con UTF-8, Unicode NFC y claves ordenadas;
+- rechazo de claves duplicadas, coma flotante y valores no canónicos;
+- snapshots inmutables con hashes SHA-256;
+- genealogía mediante `generation` y `parent_hash`;
+- congelación, verificación y restauración desde la CLI;
 - interfaz de consola;
 - pruebas unitarias con la biblioteca estándar.
 
@@ -72,6 +76,46 @@ El resultado final del ejemplo debe contener:
 }
 ```
 
+## Crear una genealogía
+
+Congelar el estado inicial como generación cero:
+
+```bash
+bcm checkpoint examples/suma.json \
+  -o /tmp/suma-genesis.snapshot.json
+```
+
+Ejecutar hasta `YIELD` y guardar el bloque mutable resultante:
+
+```bash
+bcm run examples/suma.json \
+  --output-block /tmp/suma-yield.block.json
+```
+
+Crear la generación uno enlazada con su progenitora:
+
+```bash
+bcm checkpoint /tmp/suma-yield.block.json \
+  --parent /tmp/suma-genesis.snapshot.json \
+  -o /tmp/suma-yield.snapshot.json
+```
+
+Verificar contenido y filiación:
+
+```bash
+bcm verify /tmp/suma-yield.snapshot.json \
+  --parent /tmp/suma-genesis.snapshot.json
+```
+
+Restaurar el bloque para continuar su ejecución:
+
+```bash
+bcm restore /tmp/suma-yield.snapshot.json \
+  -o /tmp/suma-restored.block.json
+```
+
+Los archivos `suma-genesis.snapshot.json`, `suma-yield.snapshot.json` y `suma-final.snapshot.json` incluidos en `examples/` forman una genealogía completa y verificable.
+
 ## Pruebas
 
 Después de la instalación editable:
@@ -100,14 +144,14 @@ computacion-liquida/
 
 El intérprete nunca usa `eval`, `exec` ni `pickle` con el documento BCM. El código recibido se representa exclusivamente mediante un conjunto cerrado de opcodes y operandos validados.
 
-BCM/0.1-A es un prototipo de laboratorio. No debe exponerse todavía a redes no confiables ni emplearse para ejecutar tareas críticas.
+BCM/0.1-B es un prototipo de laboratorio. SHA-256 detecta alteraciones y proporciona identidad por contenido, pero todavía no autentica al autor ni demuestra que una transición haya sido ejecutada legítimamente. No debe exponerse a redes no confiables ni emplearse para tareas críticas.
 
 ## Próximos hitos
 
-1. **BCM/0.1-B:** serialización canónica, hashes y snapshots inmutables.
-2. **BCM/0.2:** transferencia entre dos procesos locales.
-3. **BCM/0.3:** fragmentación física de bloques variables.
-4. **BCM/0.4:** comunicación entre dos equipos de una LAN.
+1. **BCM/0.2:** transferencia entre dos procesos locales.
+2. **BCM/0.3:** fragmentación física de bloques variables.
+3. **BCM/0.4:** comunicación entre dos equipos de una LAN.
+4. **BCM/0.5:** firmas, capacidades y autenticación entre nodos.
 
 ## Licencia
 
