@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "computacion-liquida-bcm"
+version = "0.1.0a1"
+description = "Intérprete experimental del Protocolo BCM"
+readme = "README.md"
+requires-python = ">=3.12"
+authors = [
+  { name = "Jordi Casado Sobrepere" },
+]
+dependencies = []
+
+[project.scripts]
+bcm = "bcm.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+

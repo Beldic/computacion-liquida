@@ -1,0 +1,32 @@
+{
+  "protocol": "BCM/0.1",
+  "block": {
+    "id": "ejemplo-suma-2-2",
+    "generation": 0,
+    "owner": "local",
+    "code": [
+      {"op": "PUSH", "args": [2]},
+      {"op": "PUSH", "args": [2]},
+      {"op": "YIELD", "args": []},
+      {"op": "ADD", "args": []},
+      {"op": "STORE", "args": [0]},
+      {"op": "HALT", "args": []}
+    ],
+    "state": {
+      "pc": 0,
+      "registers": {},
+      "stack": [],
+      "heap": {},
+      "halted": false,
+      "executed_total": 0
+    },
+    "capabilities": [],
+    "limits": {
+      "max_instructions_per_quantum": 10000,
+      "max_stack_items": 1024,
+      "max_heap_cells": 1024,
+      "max_registers": 16
+    }
+  }
+}
+
