@@ -6,9 +6,11 @@ Computación Líquida investiga un modelo en el que código, memoria y continuac
 
 > Concepto original y autoría: **Jordi Casado Sobrepere | Filosofía Sobreperiana**
 
-Este repositorio contiene el segundo hito técnico, **BCM/0.1-B**: una máquina virtual local y determinista cuyos estados pueden congelarse como snapshots inmutables, canónicos y enlazados mediante SHA-256. Todavía no transmite bloques entre procesos ni equipos; establece la identidad histórica que hará verificable esa migración.
+Este repositorio contiene el tercer hito técnico, **BCM/0.2-A**: dos procesos locales ya pueden transferirse snapshots BCM mediante TCP de loopback. El receptor delimita el mensaje, comprueba su codificación canónica y su identidad SHA-256, lo almacena por contenido y confirma la aceptación sin ejecutarlo automáticamente.
 
-La fundamentación completa se encuentra en [docs/computacion-liquida.md](docs/computacion-liquida.md), la semántica ejecutable del conjunto de instrucciones en [docs/isa-0.1.md](docs/isa-0.1.md) y el formato genealógico en [docs/snapshots-0.1.md](docs/snapshots-0.1.md).
+La revisión **0.2.0a2** endurece la máquina virtual tras una auditoría externa reproducible: caer fuera del programa produce ahora un `ExecutionError` controlado y los enteros BCM tienen un máximo portátil de 4096 bits. Las cuotas declaradas por un bloque pueden reducir los techos del protocolo, pero nunca ampliarlos.
+
+La fundamentación completa se encuentra en [docs/computacion-liquida.md](docs/computacion-liquida.md), la semántica ejecutable en [docs/isa-0.1.md](docs/isa-0.1.md), el formato genealógico en [docs/snapshots-0.1.md](docs/snapshots-0.1.md) y el protocolo de transporte en [docs/wire-0.2.md](docs/wire-0.2.md).
 
 ## Estado actual
 
@@ -19,6 +21,10 @@ El núcleo implementa:
 - trece instrucciones: `PUSH`, `POP`, `DUP`, `LOAD`, `STORE`, `ADD`, `SUB`, `MUL`, `DIV`, `JMP`, `JZ`, `YIELD` y `HALT`;
 - ejecución atómica entre instrucciones;
 - quantum configurable;
+- techo innegociable de 10.000 instrucciones por quantum;
+- enteros limitados a 4096 bits de magnitud;
+- resultados aritméticos fuera de cuota rechazados antes de modificar el estado;
+- caída fuera del código convertida en `ExecutionError` controlado;
 - suspensión mediante `YIELD` y reanudación local;
 - validación de instrucciones, saltos, memoria y recursos;
 - JSON canónico BCM con UTF-8, Unicode NFC y claves ordenadas;
@@ -26,6 +32,12 @@ El núcleo implementa:
 - snapshots inmutables con hashes SHA-256;
 - genealogía mediante `generation` y `parent_hash`;
 - congelación, verificación y restauración desde la CLI;
+- framing TCP con longitud explícita en orden de red;
+- transferencia restringida a IPv4 de loopback;
+- límite predeterminado de 8 MiB y tiempos de espera finitos;
+- mensajes `snapshot`, `accepted` y `rejected` con correlación;
+- almacenamiento idempotente dirigido por `content_hash`;
+- separación estricta entre recepción y ejecución;
 - interfaz de consola;
 - pruebas unitarias con la biblioteca estándar.
 
@@ -116,6 +128,37 @@ bcm restore /tmp/suma-yield.snapshot.json \
 
 Los archivos `suma-genesis.snapshot.json`, `suma-yield.snapshot.json` y `suma-final.snapshot.json` incluidos en `examples/` forman una genealogía completa y verificable.
 
+## Transferir entre dos procesos
+
+En una primera terminal WSL, iniciar un receptor para una única transferencia:
+
+```bash
+mkdir -p /tmp/bcm-inbox
+bcm receive --inbox /tmp/bcm-inbox
+```
+
+En una segunda terminal WSL, enviar un snapshot:
+
+```bash
+bcm send examples/suma-yield.snapshot.json
+```
+
+El receptor valida el frame, el esquema y el hash antes de escribir un archivo con esta forma:
+
+```text
+/tmp/bcm-inbox/<content_hash>.snapshot.json
+```
+
+Enviar de nuevo el mismo snapshot es una operación idempotente: se acepta, pero la respuesta contiene `"stored": false` porque el contenido ya existe.
+
+El receptor termina después de una conexión y nunca ejecuta el bloque. Para interpretarlo hay que restaurarlo expresamente:
+
+```bash
+bcm restore /tmp/bcm-inbox/<content_hash>.snapshot.json \
+  -o /tmp/bcm-restored.json
+bcm run /tmp/bcm-restored.json --until-halt
+```
+
 ## Pruebas
 
 Después de la instalación editable:
@@ -142,13 +185,13 @@ computacion-liquida/
 
 ## Frontera de seguridad
 
-El intérprete nunca usa `eval`, `exec` ni `pickle` con el documento BCM. El código recibido se representa exclusivamente mediante un conjunto cerrado de opcodes y operandos validados.
+El intérprete nunca usa `eval`, `exec` ni `pickle` con el documento BCM. El código recibido se representa exclusivamente mediante un conjunto cerrado de opcodes y operandos validados. Los límites del bloque solo pueden restringir los techos de recursos fijados por BCM, no elevarlos.
 
-BCM/0.1-B es un prototipo de laboratorio. SHA-256 detecta alteraciones y proporciona identidad por contenido, pero todavía no autentica al autor ni demuestra que una transición haya sido ejecutada legítimamente. No debe exponerse a redes no confiables ni emplearse para tareas críticas.
+BCM/0.2-A es un prototipo de laboratorio. SHA-256 detecta alteraciones y proporciona identidad por contenido, pero no autentica al emisor, cifra el canal ni demuestra que una transición haya sido ejecutada legítimamente. Por ello el código obliga a usar loopback IPv4 y no debe exponerse todavía a una LAN, a redes no confiables ni a tareas críticas.
 
 ## Próximos hitos
 
-1. **BCM/0.2:** transferencia entre dos procesos locales.
+1. **BCM/0.2-B:** receptor persistente y registro local de genealogías.
 2. **BCM/0.3:** fragmentación física de bloques variables.
 3. **BCM/0.4:** comunicación entre dos equipos de una LAN.
 4. **BCM/0.5:** firmas, capacidades y autenticación entre nodos.

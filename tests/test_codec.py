@@ -38,7 +38,10 @@ class CanonicalCodecTests(unittest.TestCase):
         with self.assertRaises(DecodeError):
             loads_json('{"value":NaN}')
 
+    def test_python_integer_parser_limit_becomes_controlled_error(self) -> None:
+        with self.assertRaises(DecodeError):
+            loads_json("9" * 5_000)
+
 
 if __name__ == "__main__":
     unittest.main()
-

@@ -5,9 +5,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 
+from .constants import MAX_INTEGER_BITS
 from .errors import ExecutionError, ResourceLimitError, StackUnderflowError
 from .isa import ARITHMETIC_OPCODES, Opcode
-from .model import BCMBlock, VMState, VMValue
+from .model import (
+    BCMBlock,
+    VMState,
+    VMValue,
+    is_bounded_integer,
+)
 from .validator import validate_block
 
 
@@ -61,6 +67,10 @@ class VirtualMachine:
 
     def _execute_one(self, block: BCMBlock) -> RunEvent | None:
         state = block.state
+        if state.pc < 0 or state.pc >= len(block.code):
+            raise ExecutionError(
+                f"el contador de programa cayó fuera del código: pc={state.pc}"
+            )
         instruction = block.code[state.pc]
         opcode = instruction.opcode
 
@@ -154,6 +164,12 @@ class VirtualMachine:
             result = left // right
         else:  # pragma: no cover - protegido por ARITHMETIC_OPCODES
             raise ExecutionError(f"operación aritmética desconocida: {opcode.value}")
+
+        if not is_bounded_integer(result):
+            raise ResourceLimitError(
+                f"{opcode.value} excedería el máximo de "
+                f"{MAX_INTEGER_BITS} bits por entero"
+            )
 
         state.stack[-2:] = [result]
         state.pc += 1

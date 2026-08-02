@@ -12,6 +12,15 @@ from .codec import load_json_file, write_canonical_json_file
 from .errors import BCMError, ExecutionError
 from .model import BCMBlock
 from .snapshot import BlockSnapshot, create_snapshot, verify_parent
+from .transport import (
+    DEFAULT_HOST,
+    DEFAULT_MAX_FRAME_BYTES,
+    DEFAULT_PORT,
+    DEFAULT_TIMEOUT,
+    create_listener,
+    receive_one,
+    send_snapshot,
+)
 from .validator import validate_block
 from .vm import RunEvent, VirtualMachine
 
@@ -142,12 +151,83 @@ def _restore_command(args: argparse.Namespace) -> int:
     return 0
 
 
+def _send_command(args: argparse.Namespace) -> int:
+    snapshot = load_snapshot(args.path)
+    receipt = send_snapshot(
+        snapshot,
+        host=args.host,
+        port=args.port,
+        timeout=args.timeout,
+        max_frame_bytes=args.max_frame_bytes,
+    )
+    summary = {
+        "wire_protocol": "BCM-WIRE/0.2",
+        "request_id": receipt.request_id,
+        "content_hash": receipt.content_hash,
+        "stored": receipt.stored,
+        "accepted": True,
+    }
+    print(json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True))
+    return 0
+
+
+def _receive_command(args: argparse.Namespace) -> int:
+    with create_listener(args.host, args.port) as listener:
+        bound_host, bound_port = listener.getsockname()
+        print(
+            f"BCM/0.2-A escuchando en {bound_host}:{bound_port}",
+            file=sys.stderr,
+            flush=True,
+        )
+        transfer = receive_one(
+            listener,
+            args.inbox,
+            timeout=args.timeout,
+            max_frame_bytes=args.max_frame_bytes,
+        )
+    summary = {
+        "wire_protocol": "BCM-WIRE/0.2",
+        "request_id": transfer.request_id,
+        "content_hash": transfer.content_hash,
+        "id": transfer.block_id,
+        "generation": transfer.generation,
+        "stored": transfer.stored,
+        "path": str(transfer.path),
+        "peer": transfer.peer,
+        "accepted": True,
+        "executed": False,
+    }
+    print(json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True))
+    return 0
+
+
 def _add_output_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--output", "-o", type=Path, required=True)
     parser.add_argument(
         "--force",
         action="store_true",
         help="permite sustituir el archivo de salida",
+    )
+
+
+def _add_transport_arguments(
+    parser: argparse.ArgumentParser,
+    *,
+    receive: bool = False,
+) -> None:
+    parser.add_argument("--host", default=DEFAULT_HOST)
+    parser.add_argument("--port", type=int, default=DEFAULT_PORT)
+    parser.add_argument(
+        "--timeout",
+        type=float,
+        default=30.0 if receive else DEFAULT_TIMEOUT,
+        help="segundos máximos de espera",
+    )
+    parser.add_argument(
+        "--max-frame-bytes",
+        type=int,
+        default=DEFAULT_MAX_FRAME_BYTES,
+        help="tamaño máximo del mensaje en bytes",
     )
 
 
@@ -222,6 +302,25 @@ def build_parser() -> argparse.ArgumentParser:
     restore_parser.add_argument("path", type=Path)
     _add_output_arguments(restore_parser)
     restore_parser.set_defaults(handler=_restore_command)
+
+    send_parser = subparsers.add_parser(
+        "send", help="transmite un snapshot a otro proceso local"
+    )
+    send_parser.add_argument("path", type=Path)
+    _add_transport_arguments(send_parser)
+    send_parser.set_defaults(handler=_send_command)
+
+    receive_parser = subparsers.add_parser(
+        "receive", help="recibe y almacena un snapshot sin ejecutarlo"
+    )
+    receive_parser.add_argument(
+        "--inbox",
+        type=Path,
+        required=True,
+        help="directorio de snapshots aceptados",
+    )
+    _add_transport_arguments(receive_parser, receive=True)
+    receive_parser.set_defaults(handler=_receive_command)
     return parser
 
 

@@ -1,6 +1,7 @@
 import unittest
 
 from bcm.errors import DecodeError
+from bcm.constants import MAX_INTEGER_BITS
 from bcm.model import BCMBlock
 
 
@@ -41,7 +42,16 @@ class ModelTests(unittest.TestCase):
         with self.assertRaises(DecodeError):
             BCMBlock.from_document(document)
 
+    def test_oversized_push_integer_is_rejected_while_decoding(self) -> None:
+        document = example_document()
+        document["block"]["code"] = [
+            {"op": "PUSH", "args": [1 << MAX_INTEGER_BITS]},
+            {"op": "HALT", "args": []},
+        ]
+
+        with self.assertRaises(DecodeError):
+            BCMBlock.from_document(document)
+
 
 if __name__ == "__main__":
     unittest.main()
-

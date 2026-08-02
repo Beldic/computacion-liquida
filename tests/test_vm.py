@@ -1,6 +1,7 @@
 import unittest
 
-from bcm.errors import ExecutionError, StackUnderflowError
+from bcm.constants import MAX_INTEGER_BITS
+from bcm.errors import ExecutionError, ResourceLimitError, StackUnderflowError
 from bcm.isa import Opcode
 from bcm.model import BCMBlock, Instruction, Limits, VMState
 from bcm.vm import RunEvent, VirtualMachine
@@ -110,7 +111,46 @@ class VirtualMachineTests(unittest.TestCase):
 
         self.assertEqual(block.state.to_dict(), before)
 
+    def test_falling_off_program_raises_controlled_error(self) -> None:
+        block = make_block(Instruction(Opcode.PUSH, (1,)))
+
+        with self.assertRaises(ExecutionError):
+            self.vm.run(block)
+
+        self.assertEqual(block.state.stack, [1])
+        self.assertEqual(block.state.pc, 1)
+        self.assertEqual(block.state.executed_total, 1)
+
+    def test_oversized_arithmetic_result_does_not_mutate_state(self) -> None:
+        block = make_block(
+            Instruction(Opcode.MUL),
+            Instruction(Opcode.HALT),
+            state=VMState(stack=[1 << (MAX_INTEGER_BITS - 1), 2]),
+        )
+        before = block.state.to_dict()
+
+        with self.assertRaises(ResourceLimitError):
+            self.vm.run(block)
+
+        self.assertEqual(block.state.to_dict(), before)
+
+    def test_repeated_squaring_is_stopped_by_integer_limit(self) -> None:
+        instructions = [Instruction(Opcode.PUSH, (2,))]
+        for _ in range(17):
+            instructions.extend(
+                (Instruction(Opcode.DUP), Instruction(Opcode.MUL))
+            )
+        instructions.append(Instruction(Opcode.HALT))
+        block = make_block(*instructions)
+
+        with self.assertRaises(ResourceLimitError):
+            self.vm.run(block)
+
+        self.assertLessEqual(
+            max(abs(value).bit_length() for value in block.state.stack),
+            MAX_INTEGER_BITS,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
-

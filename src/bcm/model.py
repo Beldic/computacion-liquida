@@ -5,14 +5,25 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, TypeAlias
 
+from .constants import (
+    MAX_HEAP_CELLS,
+    MAX_INSTRUCTIONS_PER_QUANTUM,
+    MAX_INTEGER_BITS,
+    MAX_REGISTERS,
+    MAX_STACK_ITEMS,
+)
 from .errors import DecodeError
 from .isa import Opcode
 
 VMValue: TypeAlias = int | bool | str | None
 
 
+def is_bounded_integer(value: object) -> bool:
+    return type(value) is int and abs(value).bit_length() <= MAX_INTEGER_BITS
+
+
 def is_vm_value(value: object) -> bool:
-    return value is None or type(value) in {int, bool, str}
+    return value is None or type(value) in {bool, str} or is_bounded_integer(value)
 
 
 def _require_mapping(value: object, field_name: str) -> dict[str, Any]:
@@ -22,13 +33,13 @@ def _require_mapping(value: object, field_name: str) -> dict[str, Any]:
 
 
 def _require_non_negative_int(value: object, field_name: str) -> int:
-    if type(value) is not int or value < 0:
+    if not is_bounded_integer(value) or value < 0:
         raise DecodeError(f"{field_name} debe ser un entero no negativo")
     return value
 
 
 def _require_positive_int(value: object, field_name: str) -> int:
-    if type(value) is not int or value <= 0:
+    if not is_bounded_integer(value) or value <= 0:
         raise DecodeError(f"{field_name} debe ser un entero positivo")
     return value
 
@@ -64,10 +75,10 @@ class Instruction:
 
 @dataclass(frozen=True, slots=True)
 class Limits:
-    max_instructions_per_quantum: int = 10_000
-    max_stack_items: int = 65_536
-    max_heap_cells: int = 65_536
-    max_registers: int = 64
+    max_instructions_per_quantum: int = MAX_INSTRUCTIONS_PER_QUANTUM
+    max_stack_items: int = MAX_STACK_ITEMS
+    max_heap_cells: int = MAX_HEAP_CELLS
+    max_registers: int = MAX_REGISTERS
 
     @classmethod
     def from_dict(cls, data: object | None) -> Limits:

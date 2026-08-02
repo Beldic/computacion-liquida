@@ -1,0 +1,7 @@
+"""Techos portátiles e innegociables del protocolo BCM/0.1."""
+
+MAX_INTEGER_BITS = 4096
+MAX_INSTRUCTIONS_PER_QUANTUM = 10_000
+MAX_STACK_ITEMS = 65_536
+MAX_HEAP_CELLS = 65_536
+MAX_REGISTERS = 64

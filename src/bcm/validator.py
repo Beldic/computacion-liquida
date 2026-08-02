@@ -1,12 +1,18 @@
 """Validación estática y de estado para bloques BCM."""
 
+from .constants import (
+    MAX_HEAP_CELLS,
+    MAX_INSTRUCTIONS_PER_QUANTUM,
+    MAX_REGISTERS,
+    MAX_STACK_ITEMS,
+)
 from .errors import ValidationError
 from .isa import ADDRESS_OPCODES, ARITY, JUMP_OPCODES, Opcode
-from .model import BCMBlock, Instruction, is_vm_value
+from .model import BCMBlock, Instruction, is_bounded_integer, is_vm_value
 
 
 def _is_non_negative_int(value: object) -> bool:
-    return type(value) is int and value >= 0
+    return is_bounded_integer(value) and value >= 0
 
 
 def validate_instruction(instruction: Instruction, code_size: int) -> None:
@@ -46,7 +52,7 @@ def validate_instruction(instruction: Instruction, code_size: int) -> None:
 def validate_block(block: BCMBlock) -> None:
     if not isinstance(block.block_id, str) or not block.block_id.strip():
         raise ValidationError("block_id debe ser una cadena no vacía")
-    if type(block.generation) is not int or block.generation < 0:
+    if not is_bounded_integer(block.generation) or block.generation < 0:
         raise ValidationError("generation debe ser un entero no negativo")
     if not isinstance(block.owner, str) or not block.owner.strip():
         raise ValidationError("owner debe ser una cadena no vacía")
@@ -62,16 +68,21 @@ def validate_block(block: BCMBlock) -> None:
     limits = block.limits
 
     limit_values = {
-        "max_instructions_per_quantum": limits.max_instructions_per_quantum,
-        "max_stack_items": limits.max_stack_items,
-        "max_heap_cells": limits.max_heap_cells,
-        "max_registers": limits.max_registers,
+        "max_instructions_per_quantum": (
+            limits.max_instructions_per_quantum,
+            MAX_INSTRUCTIONS_PER_QUANTUM,
+        ),
+        "max_stack_items": (limits.max_stack_items, MAX_STACK_ITEMS),
+        "max_heap_cells": (limits.max_heap_cells, MAX_HEAP_CELLS),
+        "max_registers": (limits.max_registers, MAX_REGISTERS),
     }
-    for name, value in limit_values.items():
-        if type(value) is not int or value <= 0:
+    for name, (value, ceiling) in limit_values.items():
+        if not is_bounded_integer(value) or value <= 0:
             raise ValidationError(f"{name} debe ser un entero positivo")
+        if value > ceiling:
+            raise ValidationError(f"{name} excede el techo BCM de {ceiling}")
 
-    if type(state.executed_total) is not int or state.executed_total < 0:
+    if not is_bounded_integer(state.executed_total) or state.executed_total < 0:
         raise ValidationError("executed_total debe ser un entero no negativo")
 
     if state.halted:

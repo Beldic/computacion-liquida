@@ -1,4 +1,4 @@
-# BCM-ISA/0.1-A
+# BCM-ISA/0.1-A — revisión 2
 
 ## Semántica mínima del intérprete local
 
@@ -22,12 +22,30 @@ $$
 
 BCM/0.1-A admite valores JSON escalares:
 
-- enteros de precisión arbitraria;
+- enteros con magnitud máxima de 4096 bits;
 - booleanos;
 - cadenas Unicode;
 - `null`, representado como `None` dentro del intérprete.
 
 Las operaciones aritméticas solo aceptan enteros y rechazan booleanos. Las direcciones y los destinos de salto son enteros no negativos.
+
+Para un entero $x$, se define:
+
+$$
+\operatorname{bits}(x) =
+\begin{cases}
+0, & x = 0 \\
+\left\lfloor \log_2 |x| \right\rfloor + 1, & x \ne 0
+\end{cases}
+$$
+
+Todo entero BCM debe cumplir:
+
+$$
+\operatorname{bits}(x) \le 4096
+$$
+
+La restricción se aplica a operandos, pila, heap, registros, direcciones y resultados. Si una operación aritmética produciría un valor mayor, lanza `ResourceLimitError` antes de modificar la pila o avanzar `pc`.
 
 ## Instrucciones
 
@@ -49,6 +67,10 @@ En la notación de pila, el elemento situado más a la derecha es la cima.
 | `YIELD` | devuelve el control | Avanza `pc` y conserva la continuación. |
 | `HALT` | detiene el bloque | Avanza `pc` y marca el estado como finalizado. |
 
+## Frontera del programa
+
+La ISA no exige que la última instrucción física sea `HALT`, porque admite programas cíclicos mediante saltos. Sin embargo, un bloque activo siempre debe apuntar a una instrucción existente. Si la ejecución secuencial deja `pc` fuera del intervalo $[0, |C|)$, la VM lanza `ExecutionError`; nunca propaga `IndexError` del anfitrión.
+
 ## Quantum
 
 El intérprete ejecuta como máximo $q$ instrucciones en cada ciclo:
@@ -65,6 +87,20 @@ El evento $e$ puede ser:
 
 `YIELD` y `HALT` consumen una instrucción del quantum. Una ejecución que termina por error no consume la instrucción fallida.
 
+El techo del protocolo es de 10.000 instrucciones por quantum. Un bloque puede declarar un límite menor, pero no elevarlo. Esta cuota limita el número de pasos; el máximo de 4096 bits limita adicionalmente el coste de cada operación entera.
+
+## Techos del protocolo
+
+| Recurso | Máximo BCM |
+|---|---:|
+| Instrucciones por quantum | 10.000 |
+| Elementos de pila | 65.536 |
+| Celdas de heap | 65.536 |
+| Registros | 64 |
+| Magnitud de un entero | 4096 bits |
+
+Los campos `limits` de un bloque son restricciones solicitadas, no permisos para superar estos valores.
+
 ## Determinismo inicial
 
-Para el mismo bloque válido y el mismo quantum, un intérprete conforme debe producir el mismo estado y el mismo evento. Esta garantía todavía excluye llamadas al sistema, concurrencia, tiempo, aleatoriedad y coma flotante.
+Para el mismo bloque válido y el mismo quantum, un intérprete conforme debe producir el mismo estado y el mismo evento. Toda implementación debe representar exactamente los enteros permitidos o rechazar el bloque como incompatible antes de ejecutarlo; no puede envolver silenciosamente a 32 o 64 bits. Esta garantía todavía excluye llamadas al sistema, concurrencia, tiempo, aleatoriedad y coma flotante.

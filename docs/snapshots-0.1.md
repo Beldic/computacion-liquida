@@ -55,7 +55,7 @@ La función $C$ aplica estas reglas:
 2. normalización Unicode NFC de claves y cadenas;
 3. claves de objetos ordenadas lexicográficamente;
 4. separadores JSON compactos, sin espacios prescindibles;
-5. enteros, booleanos, cadenas y `null` como únicos valores escalares;
+5. enteros de hasta 4096 bits, booleanos, cadenas y `null` como únicos valores escalares;
 6. prohibición de coma flotante, `NaN` e infinitos;
 7. rechazo de claves duplicadas, incluso si solo difieren antes de normalizar Unicode;
 8. rechazo de campos desconocidos dentro del esquema del snapshot.

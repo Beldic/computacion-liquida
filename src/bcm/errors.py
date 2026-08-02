@@ -35,3 +35,20 @@ class IntegrityError(BCMError):
 
 class GenealogyError(BCMError):
     """Dos generaciones no forman una relación genealógica válida."""
+
+
+class TransportError(BCMError):
+    """La transmisión no pudo completarse de forma segura."""
+
+
+class WireProtocolError(TransportError):
+    """Un mensaje no cumple el protocolo de transporte BCM."""
+
+
+class RemoteRejectedError(TransportError):
+    """El proceso receptor rechazó expresamente la transferencia."""
+
+    def __init__(self, code: str, detail: str) -> None:
+        self.code = code
+        self.detail = detail
+        super().__init__(f"el receptor rechazó el bloque ({code}): {detail}")

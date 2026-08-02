@@ -317,7 +317,7 @@ state = {
 
 Tipos iniciales permitidos:
 
-- enteros con tamaño definido;
+- enteros con un máximo inicial de 4096 bits de magnitud;
 - booleanos;
 - bytes;
 - cadenas UTF-8 limitadas;
@@ -705,7 +705,7 @@ def run_quantum(block: BCMBlock, quantum: int) -> str:
 
 ## 15. Plan de implementación
 
-### Fase 0 — Fundamentos y laboratorio
+### Fase 0 — Fundamentos y laboratorio — completada
 
 **Resultado:** repositorio ejecutable y decisiones registradas.
 
@@ -716,7 +716,7 @@ def run_quantum(block: BCMBlock, quantum: int) -> str:
 5. Registrar decisiones arquitectónicas breves.
 6. Limitar el laboratorio a `localhost`.
 
-### Fase 1 — Máquina virtual local
+### Fase 1 — Máquina virtual local — completada en BCM/0.1-A
 
 **Resultado:** un bloque calcula un valor, se suspende y continúa en el mismo intérprete.
 
@@ -727,7 +727,7 @@ def run_quantum(block: BCMBlock, quantum: int) -> str:
 5. Ejecutar el programa `2 + 2`.
 6. Verificar que el estado solo cambia en fronteras de instrucción.
 
-### Fase 2 — Congelación y serialización
+### Fase 2 — Congelación y serialización — completada en BCM/0.1-B
 
 **Resultado:** un bloque suspendido se guarda y se reconstruye sin pérdida.
 
@@ -743,18 +743,21 @@ def run_quantum(block: BCMBlock, quantum: int) -> str:
 
 6. Comprobar que ambos estados son semánticamente equivalentes.
 
-### Fase 3 — Dos procesos en un ordenador
+### Fase 3 — Dos procesos en un ordenador — iniciada en BCM/0.2-A
 
 **Resultado:** el proceso B continúa un bloque suspendido por el proceso A.
 
-1. Crear supervisor y dos trabajadores con `multiprocessing`.
-2. Usar pipes o sockets Unix para el control.
-3. Congelar el bloque en A.
-4. Transferirlo a B.
-5. Revocar la ejecución en A.
-6. Continuar en B.
-7. Devolver el resultado al supervisor.
-8. Registrar `B₀ → B₁ → B₂`.
+1. Delimitar mensajes TCP mediante longitud prefijada.
+2. Congelar el bloque en A.
+3. Transferirlo por loopback a B.
+4. Verificarlo y almacenarlo sin ejecución automática.
+5. Crear un receptor persistente y un registro de genealogías.
+6. Revocar la ejecución en A.
+7. Autorizar y continuar explícitamente en B.
+8. Devolver el resultado al supervisor.
+9. Registrar `B₀ → B₁ → B₂`.
+
+Los cuatro primeros puntos están implementados en BCM/0.2-A. Los restantes corresponden a BCM/0.2-B y fases de propiedad posteriores.
 
 ### Fase 4 — Fragmentación física
 
@@ -771,8 +774,8 @@ def run_quantum(block: BCMBlock, quantum: int) -> str:
 
 **Resultado:** el mismo cómputo continúa en una segunda máquina.
 
-1. Implementar servidor TCP asíncrono.
-2. Definir framing con longitud prefijada.
+1. Extender a la LAN el framing probado en loopback.
+2. Implementar servidor TCP asíncrono.
 3. Implementar `HELLO`, `OFFER`, `ACCEPT`, `MANIFEST`, `CHUNK` y `STORED`.
 4. Añadir `COMMIT` y cambio de propietario.
 5. Ejecutar el nodo A y el nodo B.
@@ -924,21 +927,21 @@ La traza completa permitirá visualizar el devenir operacional del bloque a trav
 
 ---
 
-## 19. Criterios de aceptación del prototipo BCM/0.1
+## 19. Criterios de aceptación del prototipo BCM
 
 El prototipo será funcional cuando cumpla simultáneamente:
 
-- [ ] Ejecuta al menos diez opcodes definidos.
-- [ ] Suspende sin estado parcial entre instrucciones.
-- [ ] Serializa y reconstruye un bloque completo.
+- [x] Ejecuta al menos diez opcodes definidos.
+- [x] Suspende sin estado parcial entre instrucciones.
+- [x] Serializa y reconstruye un bloque completo.
 - [ ] Detecta cualquier modificación de un fragmento.
 - [ ] Impide ejecutar una generación sin propiedad.
 - [ ] Migra un bloque entre dos procesos locales.
 - [ ] Migra un bloque entre dos equipos de la LAN.
 - [ ] Obtiene el mismo resultado local y distribuido.
-- [ ] Conserva la genealogía de generaciones.
-- [ ] Rechaza entradas malformadas sin ejecutar código Python.
-- [ ] Aplica límites de instrucciones y memoria.
+- [x] Conserva la genealogía de generaciones.
+- [x] Rechaza entradas malformadas sin ejecutar código Python.
+- [x] Aplica límites de instrucciones y memoria.
 - [ ] Recupera al menos desde el último checkpoint confirmado.
 
 ---
@@ -978,21 +981,25 @@ El prototipo será funcional cuando cumpla simultáneamente:
 ## 22. Hoja de ruta resumida
 
 ```text
-BCM/0.1  Máquina virtual local
+BCM/0.1-A  Máquina virtual local
    ↓
-BCM/0.2  Serialización y genealogía
+BCM/0.1-B  Serialización y genealogía
    ↓
-BCM/0.3  Migración entre procesos
+BCM/0.2-A  Transferencia TCP entre procesos locales
    ↓
-BCM/0.4  Fragmentación y protocolo TCP
+BCM/0.2-B  Receptor persistente, registro y continuación
    ↓
-BCM/0.5  Migración entre dos equipos
+BCM/0.3    Fragmentación física
    ↓
-BCM/0.6  Descubrimiento y planificación
+BCM/0.4    Migración entre dos equipos
    ↓
-BCM/0.7  Seguridad y recuperación
+BCM/0.5    Firmas, capacidades y autenticación
    ↓
-BCM/0.8  Memoria compartida y optimización Linux
+BCM/0.6    Descubrimiento y planificación
+   ↓
+BCM/0.7    Seguridad y recuperación
+   ↓
+BCM/0.8    Memoria compartida y optimización Linux
 ```
 
 ---

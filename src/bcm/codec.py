@@ -7,6 +7,7 @@ import unicodedata
 from pathlib import Path
 from typing import Any
 
+from .constants import MAX_INTEGER_BITS
 from .errors import CanonicalizationError, DecodeError
 
 
@@ -78,15 +79,30 @@ def _reject_non_finite_number(value: str) -> None:
     raise DecodeError(f"constante numérica JSON no admitida: {value}")
 
 
+def _parse_json_integer(value: str) -> int:
+    try:
+        parsed = int(value)
+    except ValueError as exc:
+        raise DecodeError("el JSON contiene un entero fuera de límites") from exc
+    if abs(parsed).bit_length() > MAX_INTEGER_BITS:
+        raise DecodeError(
+            f"un entero JSON excede el máximo de {MAX_INTEGER_BITS} bits"
+        )
+    return parsed
+
+
 def loads_json(text: str) -> Any:
     try:
         document = json.loads(
             text,
             object_pairs_hook=_reject_duplicate_pairs,
             parse_constant=_reject_non_finite_number,
+            parse_int=_parse_json_integer,
         )
     except json.JSONDecodeError as exc:
         raise DecodeError(f"JSON inválido: {exc.msg}") from exc
+    except ValueError as exc:
+        raise DecodeError("el JSON contiene un número fuera de límites") from exc
     return normalize_json_value(document)
 
 
@@ -108,4 +124,3 @@ def write_canonical_json_file(
     with path.open(mode, encoding="utf-8", newline="\n") as stream:
         stream.write(canonical_json_text(document))
         stream.write("\n")
-
